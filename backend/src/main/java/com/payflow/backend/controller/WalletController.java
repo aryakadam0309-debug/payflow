@@ -22,6 +22,7 @@ public class WalletController {
         this.walletService = walletService;
     }
 
+    // 1. Get Balance Endpoint
     @GetMapping("/balance")
     public ResponseEntity<?> getBalance(@AuthenticationPrincipal User user) {
         BigDecimal balance = walletService.getBalance(user);
@@ -31,6 +32,7 @@ public class WalletController {
         ));
     }
 
+    // 2. Transfer Money Endpoint
     @PostMapping("/transfer")
     public ResponseEntity<?> transfer(
             @AuthenticationPrincipal User user,
@@ -48,5 +50,15 @@ public class WalletController {
         } catch (RuntimeException e) {
             return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);
         }
+    }
+
+    // 3. Transaction History Endpoint (Ye missing tha jiske karan 404 aa raha tha)
+    @GetMapping("/transactions")
+    public ResponseEntity<?> getTransactionHistory(
+            @AuthenticationPrincipal User user,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        return ResponseEntity.ok(walletService.getTransactionHistory(user, page, size));
     }
 }

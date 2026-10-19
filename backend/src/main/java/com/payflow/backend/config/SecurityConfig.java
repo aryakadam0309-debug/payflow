@@ -32,11 +32,11 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
+                        // YEH LINE ADD KI HAI (Taaki asli error dikhe, 403 na aaye)
+                        .requestMatchers("/error").permitAll()
                         .anyRequest().authenticated()
                 )
-                // Add this line: Tell Spring not to use sessions (because we use JWT)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                // Add this line: Put our Bouncer before the default Spring login filter
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

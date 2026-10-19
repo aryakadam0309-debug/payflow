@@ -31,12 +31,20 @@ public class WalletController {
         ));
     }
 
-    // NEW TRANSFER ENDPOINT
     @PostMapping("/transfer")
-    public ResponseEntity<?> transfer(@AuthenticationPrincipal User user, @Valid @RequestBody TransferRequest request) {
+    public ResponseEntity<?> transfer(
+            @AuthenticationPrincipal User user,
+            @Valid @RequestBody TransferRequest request,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey
+    ) {
         try {
-            String result = walletService.transferMoney(user, request);
+            if (idempotencyKey == null || idempotencyKey.isEmpty()) {
+                return new ResponseEntity<>("Idempotency-Key header is required for transfers.", HttpStatus.BAD_REQUEST);
+            }
+
+            String result = walletService.transferMoney(user, request, idempotencyKey);
             return ResponseEntity.ok(Map.of("message", result));
+
         } catch (RuntimeException e) {
             return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);
         }

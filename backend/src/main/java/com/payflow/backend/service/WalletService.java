@@ -106,6 +106,7 @@ public class WalletService {
         transaction.setAmount(request.getAmount());
         transaction.setNote(request.getNote());
         transaction.setStatus("SUCCESS");
+        transaction.setIdempotencyKey(idempotencyKey);
         transactionRepository.save(transaction);
 
         // 9. SEND TO KAFKA (UPDATED WITH SENDER EMAIL)

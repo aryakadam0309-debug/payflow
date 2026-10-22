@@ -28,14 +28,14 @@ public class WalletService {
     private final TransactionRepository transactionRepository;
     private final RedisTemplate<String, String> redisTemplate;
     private final RateLimitService rateLimitService;
-    private final KafkaTemplate<String, TransferEvent> kafkaTemplate; // ADDED KAFKA
+    private final KafkaTemplate<String, TransferEvent> kafkaTemplate;
 
     public WalletService(WalletRepository walletRepository,
                          UserRepository userRepository,
                          TransactionRepository transactionRepository,
                          RedisTemplate<String, String> redisTemplate,
                          RateLimitService rateLimitService,
-                         KafkaTemplate<String, TransferEvent> kafkaTemplate) { // ADDED KAFKA
+                         KafkaTemplate<String, TransferEvent> kafkaTemplate) {
         this.walletRepository = walletRepository;
         this.userRepository = userRepository;
         this.transactionRepository = transactionRepository;
@@ -53,8 +53,10 @@ public class WalletService {
     @Transactional
     public String transferMoney(User sender, TransferRequest request, String idempotencyKey) {
 
+        // 1. RATE LIMITING CHECK
         rateLimitService.checkRateLimit(sender.getId());
 
+        // 2. IDEMPOTENCY CHECK
         String redisKey = "idempotency:" + idempotencyKey;
         Boolean isDuplicate = redisTemplate.hasKey(redisKey);
 
@@ -62,13 +64,16 @@ public class WalletService {
             throw new RuntimeException("Duplicate request! This transfer was already processed.");
         }
 
+        // 3. Prevent sending to self
         if (sender.getPhone().equals(request.getRecipientPhone())) {
             throw new RuntimeException("You cannot send money to yourself!");
         }
 
+        // 4. Get Recipient
         User recipient = userRepository.findByPhone(request.getRecipientPhone())
                 .orElseThrow(() -> new RuntimeException("Recipient not found with that phone number!"));
 
+        // 5. Lock Wallets
         Long senderId = sender.getId();
         Long recipientId = recipient.getId();
         Long firstLockId = senderId < recipientId ? senderId : recipientId;
@@ -82,16 +87,19 @@ public class WalletService {
         Wallet senderWallet = walletRepository.findByUser_Id(senderId).get();
         Wallet recipientWallet = walletRepository.findByUser_Id(recipientId).get();
 
+        // 6. Check Balance
         if (senderWallet.getBalance().compareTo(request.getAmount()) < 0) {
             throw new RuntimeException("Insufficient balance!");
         }
 
+        // 7. Transfer Money
         senderWallet.setBalance(senderWallet.getBalance().subtract(request.getAmount()));
         recipientWallet.setBalance(recipientWallet.getBalance().add(request.getAmount()));
 
         walletRepository.save(senderWallet);
         walletRepository.save(recipientWallet);
 
+        // 8. Transaction Record
         Transaction transaction = new Transaction();
         transaction.setSenderWallet(senderWallet);
         transaction.setReceiverWallet(recipientWallet);
@@ -100,8 +108,9 @@ public class WalletService {
         transaction.setStatus("SUCCESS");
         transactionRepository.save(transaction);
 
-        // SEND TO KAFKA (NEW)
+        // 9. SEND TO KAFKA (UPDATED WITH SENDER EMAIL)
         TransferEvent event = new TransferEvent(
+                sender.getEmail(),
                 sender.getFullName(),
                 recipient.getFullName(),
                 request.getAmount(),
@@ -109,6 +118,7 @@ public class WalletService {
         );
         kafkaTemplate.send("transfer-events", event);
 
+        // 10. SAVE KEY TO REDIS
         redisTemplate.opsForValue().set(redisKey, "SUCCESS", 24, TimeUnit.HOURS);
 
         return "Transfer of ₹" + request.getAmount() + " to " + recipient.getFullName() + " was successful!";

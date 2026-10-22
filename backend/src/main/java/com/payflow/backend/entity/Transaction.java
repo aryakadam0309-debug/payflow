@@ -1,11 +1,9 @@
 package com.payflow.backend.entity;
 
 import jakarta.persistence.*;
-import org.springframework.data.annotation.Id;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-@Column(unique = true)
+
 @Entity
 @Table(name = "transactions")
 public class Transaction {
@@ -13,11 +11,7 @@ public class Transaction {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    private String idempotencyKey;
 
-    // Add Getters and Setters for idempotencyKey
-    public String getIdempotencyKey() { return idempotencyKey; }
-    public void setIdempotencyKey(String idempotencyKey) { this.idempotencyKey = idempotencyKey; }
     @ManyToOne
     @JoinColumn(name = "sender_wallet_id", nullable = false)
     private Wallet senderWallet;
@@ -33,6 +27,9 @@ public class Transaction {
     private String status; // "SUCCESS", "FAILED"
 
     private String note;
+
+    @Column(unique = true)
+    private String idempotencyKey; // <-- Added for database-level safety
 
     private LocalDateTime timestamp;
 
@@ -59,6 +56,9 @@ public class Transaction {
 
     public String getNote() { return note; }
     public void setNote(String note) { this.note = note; }
+
+    public String getIdempotencyKey() { return idempotencyKey; }
+    public void setIdempotencyKey(String idempotencyKey) { this.idempotencyKey = idempotencyKey; }
 
     public LocalDateTime getTimestamp() { return timestamp; }
     public void setTimestamp(LocalDateTime timestamp) { this.timestamp = timestamp; }

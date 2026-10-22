@@ -1,154 +1,83 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Wallet, Send, LogOut, ArrowUpRight, ArrowDownLeft, Loader2 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Send, ArrowUpRight, ArrowDownLeft, Loader2, History } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
 import api from '../api/axios';
 
 export default function Dashboard() {
   const [balance, setBalance] = useState(0);
   const [userName, setUserName] = useState('');
   const [transactions, setTransactions] = useState([]);
-  const [recipientPhone, setRecipientPhone] = useState('');
-  const [amount, setAmount] = useState('');
-  const [note, setNote] = useState('');
-  const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
-  const [message, setMessage] = useState({ type: '', text: '' });
-  
   const navigate = useNavigate();
 
-  // Fetch Balance and Transactions on load
-  const fetchData = async () => {
-    try {
-      const balanceRes = await api.get('/wallet/balance');
-      setBalance(balanceRes.data.balance);
-      setUserName(balanceRes.data.fullName);
-
-      const txRes = await api.get('/wallet/transactions?page=0&size=5');
-      setTransactions(txRes.data.content);
-    } catch (err) {
-      console.error("Failed to fetch data", err);
-      if (err.response?.status === 403 || err.response?.status === 401) {
-        handleLogout();
-      }
-    } finally {
-      setFetching(false);
-    }
-  };
-
   useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const balanceRes = await api.get('/wallet/balance');
+        setBalance(balanceRes.data.balance);
+        setUserName(balanceRes.data.fullName);
+
+        const txRes = await api.get('/wallet/transactions?page=0&size=5');
+        setTransactions(txRes.data.content);
+      } catch (err) {
+        if (err.response?.status === 403 || err.response?.status === 401) {
+          localStorage.removeItem('token');
+          navigate('/login');
+        }
+      } finally {
+        setFetching(false);
+      }
+    };
     fetchData();
-  }, []);
-
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    navigate('/login');
-  };
-
-  const handleTransfer = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setMessage({ type: '', text: '' });
-
-    try {
-      const idempotencyKey = crypto.randomUUID(); // Unique key for safety
-      
-      const response = await api.post('/wallet/transfer', {
-        recipientPhone,
-        amount: parseFloat(amount),
-        note
-      }, {
-        headers: { 'Idempotency-Key': idempotencyKey }
-      });
-
-      setMessage({ type: 'success', text: response.data.message });
-      setRecipientPhone('');
-      setAmount('');
-      setNote('');
-      fetchData(); // Refresh balance and history
-    } catch (err) {
-      setMessage({ type: 'error', text: err.response?.data || 'Transfer failed.' });
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [navigate]);
 
   if (fetching) {
-    return (
-      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
-        <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
-      </div>
-    );
+    return <div className="flex items-center justify-center h-full"><Loader2 className="w-10 h-10 text-blue-500 animate-spin" /></div>;
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white p-6 md:p-10 relative overflow-hidden">
-      {/* Background Gradients */}
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/20 blur-[120px] rounded-full pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-600/20 blur-[120px] rounded-full pointer-events-none" />
-
-      {/* Top Navbar */}
-      <div className="relative z-10 flex justify-between items-center mb-10 max-w-6xl mx-auto">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-gradient-to-tr from-blue-500 to-purple-600 rounded-xl">
-            <Wallet className="w-6 h-6 text-white" />
-          </div>
-          <h1 className="text-2xl font-bold">PayFlow</h1>
-        </div>
-        <button onClick={handleLogout} className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors bg-white/5 px-4 py-2 rounded-lg border border-white/10">
-          <LogOut className="w-4 h-4" /> Logout
-        </button>
+    <div className="max-w-6xl mx-auto space-y-8">
+      {/* Header */}
+      <div>
+        <h1 className="text-3xl font-bold">Dashboard</h1>
+        <p className="text-gray-400">Hello, {userName}. Here is your financial overview.</p>
       </div>
 
-      <div className="relative z-10 max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
-        {/* Left Column: Balance & Transfer Form */}
-        <div className="space-y-6">
+        {/* Left Column: Balance Card */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="lg:col-span-1 bg-gradient-to-br from-blue-600 to-purple-700 p-8 rounded-3xl shadow-2xl relative overflow-hidden flex flex-col justify-between">
+          <div>
+            <p className="text-blue-100 mb-1">Available Balance</p>
+            <h2 className="text-4xl font-extrabold mb-8">₹{balance.toFixed(2)}</h2>
+          </div>
           
-          {/* Balance Card */}
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-gradient-to-br from-blue-600 to-purple-700 p-8 rounded-3xl shadow-2xl relative overflow-hidden">
-            <div className="relative z-10">
-              <p className="text-blue-100 mb-1">Welcome back, {userName}</p>
-              <h2 className="text-5xl font-extrabold mb-6">₹{balance.toFixed(2)}</h2>
-              <div className="flex gap-4 text-sm text-blue-200">
-                <span className="flex items-center gap-1"><div className="w-2 h-2 bg-green-400 rounded-full"></div> Active Wallet</span>
-              </div>
-            </div>
-          </motion.div>
+          <div className="grid grid-cols-2 gap-3 mt-4">
+            <Link to="/send" className="flex items-center justify-center gap-2 bg-white text-blue-700 hover:bg-gray-100 py-3 rounded-xl font-semibold transition-all">
+              <Send className="w-4 h-4" /> Send
+            </Link>
+            <Link to="/transactions" className="flex items-center justify-center gap-2 bg-blue-900/40 hover:bg-blue-900/60 text-white py-3 rounded-xl font-semibold transition-all">
+              <History className="w-4 h-4" /> History
+            </Link>
+          </div>
+        </motion.div>
 
-          {/* Transfer Form */}
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white/5 backdrop-blur-xl border border-white/10 p-6 rounded-3xl">
-            <h3 className="text-xl font-semibold mb-4">Send Money</h3>
-            
-            {message.text && (
-              <div className={`p-3 mb-4 rounded-xl text-sm ${message.type === 'success' ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300'}`}>
-                {message.text}
-              </div>
-            )}
-
-            <form onSubmit={handleTransfer} className="space-y-4">
-              <input type="text" placeholder="Recipient Phone Number" value={recipientPhone} onChange={(e) => setRecipientPhone(e.target.value)} required className="w-full bg-black/30 border border-white/10 text-white placeholder-gray-500 px-4 py-3 rounded-xl focus:border-blue-500 outline-none" />
-              <input type="number" placeholder="Amount (₹)" value={amount} onChange={(e) => setAmount(e.target.value)} required min="1" className="w-full bg-black/30 border border-white/10 text-white placeholder-gray-500 px-4 py-3 rounded-xl focus:border-blue-500 outline-none" />
-              <input type="text" placeholder="Note (e.g. Dinner)" value={note} onChange={(e) => setNote(e.target.value)} className="w-full bg-black/30 border border-white/10 text-white placeholder-gray-500 px-4 py-3 rounded-xl focus:border-blue-500 outline-none" />
-              
-              <button disabled={loading} type="submit" className="w-full flex justify-center items-center gap-2 bg-white text-black font-bold py-3 rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-70">
-                {loading ? 'Processing...' : <><Send className="w-5 h-5" /> Transfer</>}
-              </button>
-            </form>
-          </motion.div>
-        </div>
-
-        {/* Right Column: Transaction History */}
-        <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }} className="bg-white/5 backdrop-blur-xl border border-white/10 p-6 rounded-3xl h-fit">
-          <h3 className="text-xl font-semibold mb-4">Recent Transactions</h3>
+        {/* Right Column: Recent Transactions */}
+        <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="lg:col-span-2 bg-white/5 backdrop-blur-xl border border-white/10 p-6 rounded-3xl">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-xl font-semibold">Recent Activity</h3>
+            <Link to="/transactions" className="text-blue-400 text-sm hover:underline">View All</Link>
+          </div>
+          
           <div className="space-y-4">
             {transactions.length === 0 ? (
-              <p className="text-gray-500 text-center py-6">No transactions yet.</p>
+              <p className="text-gray-500 text-center py-6">No recent transactions.</p>
             ) : (
               transactions.map((tx) => (
-                <div key={tx.id} className="flex justify-between items-center p-4 bg-black/20 rounded-2xl border border-white/5">
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-full ${tx.type === 'SENT' ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>
+                <div key={tx.id} className="flex justify-between items-center p-4 bg-black/20 rounded-2xl border border-white/5 hover:bg-black/40 transition-colors">
+                  <div className="flex items-center gap-4">
+                    <div className={`p-3 rounded-full ${tx.type === 'SENT' ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>
                       {tx.type === 'SENT' ? <ArrowUpRight className="w-5 h-5" /> : <ArrowDownLeft className="w-5 h-5" />}
                     </div>
                     <div>

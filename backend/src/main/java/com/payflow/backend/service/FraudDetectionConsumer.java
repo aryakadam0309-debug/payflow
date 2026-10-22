@@ -16,41 +16,46 @@ public class FraudDetectionConsumer {
 
     private final FraudFlagRepository fraudFlagRepository;
     private final RedisTemplate<String, String> redisTemplate;
+    private final AiFraudService aiFraudService; // ADDED THIS
 
     public FraudDetectionConsumer(FraudFlagRepository fraudFlagRepository,
-                                  RedisTemplate<String, String> redisTemplate) {
+                                  RedisTemplate<String, String> redisTemplate,
+                                  AiFraudService aiFraudService) { // ADDED THIS
         this.fraudFlagRepository = fraudFlagRepository;
         this.redisTemplate = redisTemplate;
+        this.aiFraudService = aiFraudService;
     }
 
     @KafkaListener(topics = "transfer-events", groupId = "fraud-group")
     public void analyzeTransaction(TransferEvent event) {
 
-        // Rule 1: High Amount (Anything over ₹10,000)
+        // Rule 1: High Amount
         if (event.getAmount().compareTo(new BigDecimal("10000")) > 0) {
-            saveFraudFlag(event, "HIGH_AMOUNT", "Transaction exceeds ₹10,000 limit.");
+            saveFraudFlag(event, "HIGH_AMOUNT");
         }
 
-        // Rule 2: Velocity (More than 3 transfers in 1 minute)
+        // Rule 2: Velocity
         String velocityKey = "fraud:velocity:" + event.getSenderEmail();
         Long transferCount = redisTemplate.opsForValue().increment(velocityKey);
-
         if (transferCount != null && transferCount == 1) {
             redisTemplate.expire(velocityKey, 1, TimeUnit.MINUTES);
         }
-
         if (transferCount != null && transferCount > 3) {
-            saveFraudFlag(event, "HIGH_VELOCITY", "User made more than 3 transfers in 1 minute.");
+            saveFraudFlag(event, "HIGH_VELOCITY");
         }
 
-        // Rule 3: Unusual Time (Between 2:00 AM and 5:00 AM)
+        // Rule 3: Unusual Time
         int hour = LocalTime.now().getHour();
         if (hour >= 2 && hour <= 5) {
-            saveFraudFlag(event, "UNUSUAL_TIME", "Transaction occurred in the middle of the night.");
+            saveFraudFlag(event, "UNUSUAL_TIME");
         }
     }
 
-    private void saveFraudFlag(TransferEvent event, String reasonCode, String aiExplanation) {
+    private void saveFraudFlag(TransferEvent event, String reasonCode) {
+
+        // CALL THE AI HERE
+        String aiExplanation = aiFraudService.generateExplanation(event, reasonCode);
+
         FraudFlag flag = new FraudFlag();
         flag.setSenderEmail(event.getSenderEmail());
         flag.setReceiverName(event.getReceiverName());
@@ -62,6 +67,6 @@ public class FraudDetectionConsumer {
 
         System.out.println("\n🚨 FRAUD ALERT TRIGGERED 🚨");
         System.out.println("Reason: " + reasonCode + " | User: " + event.getSenderEmail());
-        System.out.println("Amount: ₹" + event.getAmount() + "\n");
+        System.out.println("🤖 AI Analysis: " + aiExplanation + "\n");
     }
 }
